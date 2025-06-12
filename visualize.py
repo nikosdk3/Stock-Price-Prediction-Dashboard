@@ -19,7 +19,7 @@ class Visualizer:
             rows=2,
             cols=1,
             subplot_titles=("Price", "Volume"),
-            vertical_spacing=0.1,
+            vertical_spacing=0.3,
             row_heights=[0.7, 0.3],
         )
 
@@ -51,7 +51,6 @@ class Visualizer:
 
         fig.update_layout(
             title=title,
-            xaxis_title="Date",
             template="plotly_white",
             height=600,
             showlegend=False,
