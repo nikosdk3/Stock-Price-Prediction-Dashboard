@@ -41,6 +41,10 @@ def main():
 
         forecast_days = st.slider("Forecast Days", min_value=7, max_value=90, value=30)
 
+        lookback_period = st.slider(
+            "Lookback Period", min_value=30, max_value=120, value=60
+        )
+
         load_data = st.button("Load Data", type="primary")
 
         # MODEL
@@ -49,9 +53,7 @@ def main():
         model_type = st.selectbox("Model Type", ["LSTM", "ARIMA", "Both"])
 
         if model_type in ["LSTM", "Both"]:
-            lookback_period = st.slider(
-                "Lookback Period", min_value=30, max_value=120, value=60
-            )
+
             epochs = st.slider("Training Epochs", min_value=10, max_value=100, value=50)
             hidden_size = st.slider(
                 "Hidden Size", min_value=32, max_value=128, value=50
@@ -162,6 +164,8 @@ def main():
                             "status": "success",
                         }
 
+                        st.session_state["test_data"] = test_data
+
                     except Exception as e:
                         st.error(f"LSTM training failed: {str(e)}")
                         results["LSTM"] = {"status": "failed", "error": str(e)}
@@ -188,8 +192,52 @@ def main():
             if "model_results" in st.session_state:
                 results = st.session_state["model_results"]
 
-                last_date = data["Date"].iloc[-1]
-                forecast_dates = pd.date_range(start=last_date + timedelta(days=1),)
+                last_date = pd.Timestamp(data["Date"].iloc[-1])
+                print(last_date)
+                forecast_dates = pd.date_range(
+                    start=last_date + timedelta(days=1), periods=forecast_days, freq="D"
+                )
+                print(forecast_dates)
+
+                for model_name, result in results.items():
+                    if result["status"] == "success":
+                        st.subheader(f"{model_name} Forecast")
+
+                        try:
+                            if model_name == "LSTM":
+                                predictions = result["model"].predict(
+                                    data, steps=forecast_days
+                                )
+                                print(predictions)
+
+                            forecast_df = pd.DataFrame(
+                                {"Date": forecast_dates, "Predicted_Price": predictions}
+                            )
+                            print(forecast_df)
+
+                            fig = visualizer.plot_predictions(
+                                data, predictions, forecast_dates, model_name
+                            )
+                            st.plotly_chart(fig, use_container_width=True)
+
+                            st.subheader(f"{model_name} Forecast Data")
+                            st.dataframe(forecast_df.head(10), use_container_width=True)
+
+                            csv = forecast_df.to_csv(index=False)
+                            st.download_button(
+                                label=f"Download {model_name} Forecast CSV",
+                                data=csv,
+                                file_name=f"{ticker}_{model_name}_forecast.csv",
+                                mime="text/csv",
+                            )
+
+                        except Exception as e:
+                            st.error(
+                                f"Error generating {model_name} forecast: {str(e)}"
+                            )
+
+                    else:
+                        st.info("Please train models first in the 'Model Training' tab")
 
 
 if __name__ == "__main__":

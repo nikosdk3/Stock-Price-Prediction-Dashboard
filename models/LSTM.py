@@ -153,7 +153,7 @@ class LSTMModel:
 
             scheduler.step(avg_val_loss)
 
-            st.write(
+            print(
                 f"Epoch [{epoch+1}/{epochs}], Train loss: {avg_train_loss:.6f}, Val loss: {avg_val_loss:.6f}"
             )
             progress_bar.progress((epoch + 1) / epochs)

@@ -1,5 +1,6 @@
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+import pandas as pd
 
 
 class Visualizer:
@@ -54,6 +55,41 @@ class Visualizer:
             template="plotly_white",
             height=600,
             showlegend=False,
+        )
+
+        return fig
+
+    def plot_predictions(
+        self, historical_data, predictions, forecast_dates, model_type, true_values=None
+    ):
+        fig = go.Figure()
+
+        fig.add_trace(
+            go.Scatter(
+                x=historical_data["Date"],
+                y=historical_data["Close"],
+                mode="lines",
+                name="Historical",
+                line=dict(color=self.colors["primary"], width=2),
+            )
+        )
+
+        fig.add_trace(
+            go.Scatter(
+                x=forecast_dates,
+                y=predictions,
+                mode="lines+markers",
+                name=f"{model_type} Forecast",
+                line=dict(color=self.colors["danger"], width=2, dash="dash"),
+                marker=dict(size=6),
+            )
+        )
+
+        fig.update_layout(
+            title=f"Stock Price Forecast - {model_type} Model",
+            xaxis_title="Date",
+            yaxis_title="Price ($)",
+            template="plotly_white",
         )
 
         return fig
