@@ -112,7 +112,6 @@ class LSTMModel:
         val_losses = []
 
         progress_bar = st.progress(0)
-        status_text = st.text("Training LSTM model...")
         best_val_loss = float("inf")
         for epoch in range(epochs):
             self.model.train()
@@ -160,7 +159,6 @@ class LSTMModel:
             progress_bar.progress((epoch + 1) / epochs)
 
         self.is_trained = True
-        st.success("Model successfully trained")
 
         history = {"train_loss": train_losses, "val_loss": val_losses}
 

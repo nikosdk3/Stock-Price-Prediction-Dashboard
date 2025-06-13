@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 from data_loader import DataLoader
 from visualize import Visualizer
 from datetime import datetime, timedelta
@@ -22,8 +23,8 @@ def main():
 
     # Sidebar
     with st.sidebar:
-        st.header("Configuration")
-
+        # STOCK
+        st.subheader("Stock Settings")
         ticker = st.text_input(
             "Stock Ticker",
             value="AAPL",
@@ -38,14 +39,16 @@ def main():
         with col2:
             end_date = st.date_input("End Date", value=datetime.now())
 
-        model_type = st.selectbox("Model Type", ["LSTM", "ARIMA", "Both"])
-
         forecast_days = st.slider("Forecast Days", min_value=7, max_value=90, value=30)
 
         load_data = st.button("Load Data", type="primary")
 
-        if model_type in ["LSTM", "ARIMA"]:
-            st.subheader("Model Parameters")
+        # MODEL
+        st.subheader("Model Settings")
+
+        model_type = st.selectbox("Model Type", ["LSTM", "ARIMA", "Both"])
+
+        if model_type in ["LSTM", "Both"]:
             lookback_period = st.slider(
                 "Lookback Period", min_value=30, max_value=120, value=60
             )
@@ -136,10 +139,12 @@ def main():
 
         with tab2:
             st.header("Model Training")
-            if st.button("Train Models", type="primary"):
+            if st.button("Train Model", type="primary"):
+                status_text = st.empty()
                 results = {}
                 if model_type in ["LSTM", "Both"]:
                     try:
+                        status_text = st.text("Training LSTM model...")
                         lstm_model = LSTMModel(
                             lookback_period=lookback_period,
                             hidden_size=hidden_size,
@@ -160,6 +165,32 @@ def main():
                     except Exception as e:
                         st.error(f"LSTM training failed: {str(e)}")
                         results["LSTM"] = {"status": "failed", "error": str(e)}
+
+                st.success("Training completed!")
+
+                st.session_state["model_results"] = results
+
+                st.subheader("Training Results")
+                for model_name, result in results.items():
+                    if result["status"] == "success":
+                        st.write(f"**{model_name} Model Metrics:**")
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("MAE", f"{result['metrics']['MAE']:.3f}")
+                        with col2:
+                            st.metric("RMSE", f"{result['metrics']['RMSE']:.3f}")
+                        with col3:
+                            st.metric("MAPE", f"{result['metrics']['MAPE']:.3f}")
+
+        with tab3:
+            st.header("Forecast Results")
+
+            if "model_results" in st.session_state:
+                results = st.session_state["model_results"]
+
+                last_date = data["Date"].iloc[-1]
+                forecast_dates = pd.date_range(start=last_date + timedelta(days=1),)
+
 
 if __name__ == "__main__":
     main()
