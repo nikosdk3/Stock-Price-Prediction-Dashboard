@@ -171,3 +171,4 @@ class LSTMModel:
         with torch.no_grad():
             for _ in range(steps):
                 pred = self.model(current_sequence)
+                
