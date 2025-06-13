@@ -3,7 +3,7 @@ from data_loader import DataLoader
 from visualize import Visualizer
 from datetime import datetime, timedelta
 from models.LSTM import LSTMModel
-from utils import calculate_metrics
+from models.utils import calculate_metrics
 
 
 def main():
@@ -136,17 +136,9 @@ def main():
 
         with tab2:
             st.header("Model Training")
-
             if st.button("Train Models", type="primary"):
-                progress_bar = st.progress(0)
-                status_text = st.empty()
-
                 results = {}
-
                 if model_type in ["LSTM", "Both"]:
-                    status_text.text("Training LSTM model...")
-                    progress_bar.progress(25)
-
                     try:
                         lstm_model = LSTMModel(
                             lookback_period=lookback_period,
@@ -157,7 +149,6 @@ def main():
                             data, epochs=epochs, learning_rate=learning_rate
                         )
                         y_test_actual, y_test_pred = lstm_model.eval_model(test_data)
-
                         lstm_metrics = calculate_metrics(y_test_actual, y_test_pred)
 
                         results["LSTM"] = {
@@ -166,12 +157,9 @@ def main():
                             "status": "success",
                         }
 
-                        st.success("Model successfully trained")
-
                     except Exception as e:
                         st.error(f"LSTM training failed: {str(e)}")
                         results["LSTM"] = {"status": "failed", "error": str(e)}
-
 
 if __name__ == "__main__":
     main()

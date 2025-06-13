@@ -111,7 +111,9 @@ class LSTMModel:
         train_losses = []
         val_losses = []
 
-        best_val_loss = float('inf')
+        progress_bar = st.progress(0)
+        status_text = st.text("Training LSTM model...")
+        best_val_loss = float("inf")
         for epoch in range(epochs):
             self.model.train()
             train_loss = 0.0
@@ -155,10 +157,13 @@ class LSTMModel:
             st.write(
                 f"Epoch [{epoch+1}/{epochs}], Train loss: {avg_train_loss:.6f}, Val loss: {avg_val_loss:.6f}"
             )
+            progress_bar.progress((epoch + 1) / epochs)
 
         self.is_trained = True
+        st.success("Model successfully trained")
 
         history = {"train_loss": train_losses, "val_loss": val_losses}
+
         return history, test_data
 
     def predict(self, data, steps=30):
@@ -172,9 +177,7 @@ class LSTMModel:
         last_sequence = scaled_data[-self.lookback_period :]
 
         predictions = []
-        current_sequence = (
-            torch.FloatTensor(last_sequence).unsqueeze(0).to(self.device)
-        )
+        current_sequence = torch.FloatTensor(last_sequence).unsqueeze(0).to(self.device)
 
         with torch.no_grad():
             for _ in range(steps):
@@ -182,7 +185,9 @@ class LSTMModel:
                 predictions.append(pred.cpu().flatten().numpy()[0])
 
                 new_pred = pred.unsqueeze(0)
-                current_sequence = torch.cat([current_sequence[:, 1:, :], new_pred], dim=1)
+                current_sequence = torch.cat(
+                    [current_sequence[:, 1:, :], new_pred], dim=1
+                )
 
         predictions = np.array(predictions).reshape(-1, 1)
         predictions = self.scaler.inverse_transform(predictions)
@@ -203,10 +208,12 @@ class LSTMModel:
 
         with torch.no_grad():
             for i in range(len(X_test)):
-                pred = self.model(X_test[i:i+1])
+                pred = self.model(X_test[i : i + 1])
                 predictions.append(pred.item())
 
         y_test_inv = self.scaler.inverse_transform(y_test).flatten()
-        predictions_inv = self.scaler.inverse_transform(np.array(predictions)).flatten()
+        predictions_inv = self.scaler.inverse_transform(
+            np.array(predictions).reshape(-1, 1)
+        ).flatten()
 
         return y_test_inv, predictions_inv
