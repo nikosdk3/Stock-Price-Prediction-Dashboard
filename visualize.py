@@ -93,3 +93,42 @@ class Visualizer:
         )
 
         return fig
+
+    def plot_backtesting(self, actual, predicted, dates, model_type):
+        fig = go.Figure()
+
+        fig.add_trace(
+            go.Scatter(
+                x=dates,
+                y=actual,
+                mode="lines",
+                name="Actual",
+                line=dict(color=self.colors["primary"], width=2),
+            )
+        )
+
+        fig.add_trace(
+            go.Scatter(
+                x=dates,
+                y=predicted,
+                mode="lines",
+                name="Predicted",
+                line=dict(color=self.colors["danger"], width=2, dash="dash"),
+            )
+        )
+
+        fig.update_layout(
+            title=f"Backtesting Results - {model_type} Model",
+            xaxis_title="Date",
+            yaxis_title="Price ($)",
+            template="plotly_white",
+        )
+
+        return fig
+
+    def plot_lstm_accuracy(self, actual, predicted):
+        dates = pd.date_range(
+            start=pd.Timestamp.now() - pd.Timedelta(days=len(actual)),
+            periods=len(actual),
+        )
+        return self.plot_backtesting(actual, predicted, dates, model_type="LSTM")

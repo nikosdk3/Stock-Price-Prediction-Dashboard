@@ -41,19 +41,17 @@ def main():
 
         forecast_days = st.slider("Forecast Days", min_value=7, max_value=90, value=30)
 
-        lookback_period = st.slider(
-            "Lookback Period", min_value=30, max_value=120, value=60
-        )
-
         load_data = st.button("Load Data", type="primary")
 
         # MODEL
         st.subheader("Model Settings")
-
         model_type = st.selectbox("Model Type", ["LSTM", "ARIMA", "Both"])
 
-        if model_type in ["LSTM", "Both"]:
+        lookback_period = st.slider(
+            "Lookback Period", min_value=30, max_value=120, value=60
+        )
 
+        if model_type in ["LSTM", "Both"]:
             epochs = st.slider("Training Epochs", min_value=10, max_value=100, value=50)
             hidden_size = st.slider(
                 "Hidden Size", min_value=32, max_value=128, value=50
@@ -164,8 +162,6 @@ def main():
                             "status": "success",
                         }
 
-                        st.session_state["test_data"] = test_data
-
                     except Exception as e:
                         st.error(f"LSTM training failed: {str(e)}")
                         results["LSTM"] = {"status": "failed", "error": str(e)}
@@ -193,11 +189,9 @@ def main():
                 results = st.session_state["model_results"]
 
                 last_date = pd.Timestamp(data["Date"].iloc[-1])
-                print(last_date)
                 forecast_dates = pd.date_range(
                     start=last_date + timedelta(days=1), periods=forecast_days, freq="D"
                 )
-                print(forecast_dates)
 
                 for model_name, result in results.items():
                     if result["status"] == "success":
@@ -208,12 +202,10 @@ def main():
                                 predictions = result["model"].predict(
                                     data, steps=forecast_days
                                 )
-                                print(predictions)
 
                             forecast_df = pd.DataFrame(
                                 {"Date": forecast_dates, "Predicted_Price": predictions}
                             )
-                            print(forecast_df)
 
                             fig = visualizer.plot_predictions(
                                 data, predictions, forecast_dates, model_name
@@ -236,8 +228,93 @@ def main():
                                 f"Error generating {model_name} forecast: {str(e)}"
                             )
 
-                    else:
-                        st.info("Please train models first in the 'Model Training' tab")
+            else:
+                st.info("Please train models first in the 'Model Training' tab.")
+
+        with tab4:
+            st.header("Metrics & Backtesting")
+
+            if "model_results" in st.session_state:
+                results = st.session_state["model_results"]
+
+                # TODO: Add comparison between future models. For just use LSTM
+
+                st.subheader("Backtesting results")
+
+                backtest_days = st.slider(
+                    "Backtesting Period (days)", min_value=30, max_value=180, value=60
+                )
+
+                if st.button("Run Backtesting"):
+                    for model_name, result in results.items():
+                        if result["status"] == "success":
+                            try:
+                                train_data = data[:-backtest_days]
+                                test_data = data[-backtest_days:]
+
+                                predictions = result["model"].predict(
+                                    train_data, steps=backtest_days
+                                )
+
+                                actual_values = test_data["Close"].values
+
+                                fig = visualizer.plot_backtesting(
+                                    actual_values,
+                                    predictions,
+                                    test_data["Date"],
+                                    model_name,
+                                )
+                                st.plotly_chart(fig, use_container_width=True)
+
+                                col1, col2, col3 = st.columns(3)
+                                backtest_metrics = result["metrics"]
+                                with col1:
+                                    st.metric(
+                                        f"{model_name} MAE",
+                                        f"{backtest_metrics['MAE']:.3f}",
+                                    )
+                                with col2:
+                                    st.metric(
+                                        f"{model_name} RMSE",
+                                        f"{backtest_metrics['RMSE']:.3f}",
+                                    )
+                                with col3:
+                                    st.metric(
+                                        f"{model_name} MAPE",
+                                        f"{backtest_metrics['MAPE']:.3f}",
+                                    )
+
+                            except Exception as e:
+                                st.error(
+                                    f"Backtesting failed for {model_name}: {str(e)}"
+                                )
+            else:
+                st.info("Please train models first in the 'Model Training' tab.")
+    else:
+        st.info(
+            "👈 Please configure your settings in the sidebar and click 'Load Data' to get started."
+        )
+
+        st.markdown(
+            """
+        ## 🚀 Features
+
+        - **📊 Interactive Data Visualization**: View historical stock prices with interactive charts
+        - **🤖 Multiple ML Models (WIP)**: Choose between LSTM and ARIMA models for predictions
+        - **🔮 Future Predicitons**: Forecast stock prices for up to 90 days
+        - **📈 Performance Metrics**: Evaluate models using MAE, RMSE, and MAPE
+        - **🔄️ Backtesting**: Test model performance on historical data
+        - **💾 Export Results**: Download predictions as CSV files
+
+        ## 📋 How to Use
+
+        1. **Enter a stock ticker** (e.g., AAPL, GOOGL, TSLA)
+        2. **Select a date range** for historical data
+        3. **Choose model type (WIP)** (LSTM, ARIMA, or both)
+        4. **Configure parameters** and click "Load Data"
+        5. **Navigate through tabs** to explore data, train models, and view results
+        """
+        )
 
 
 if __name__ == "__main__":

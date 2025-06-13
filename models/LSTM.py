@@ -52,8 +52,10 @@ class LSTMModel:
         self.is_trained = False
         self.device = device
 
-    def prepare_data(self, data, target_column="Close"):
-        scaled_data = self.scaler.fit_transform(data[[target_column]])
+    def prepare_data(self, data, target_column="Close", fit_scaler=True):
+        if fit_scaler:
+            self.scaler.fit(data[[target_column]])
+        scaled_data = self.scaler.transform(data[[target_column]])
 
         X, y = [], []
 
@@ -88,7 +90,13 @@ class LSTMModel:
         return train_loader, test_loader, (X_test, y_test)
 
     def train(
-        self, data, target_column="Close", epochs=50, batch_size=32, learning_rate=0.001
+        self,
+        data,
+        target_column="Close",
+        epochs=50,
+        batch_size=32,
+        learning_rate=0.001,
+        teacher_forcing_ratio=0.5,
     ):
         X, y = self.prepare_data(data, target_column)
         train_loader, test_loader, test_data = self.create_data_loaders(
@@ -122,6 +130,16 @@ class LSTMModel:
                 optimizer.zero_grad()
 
                 outputs = self.model(batch_X)
+
+                # Ensure batch_y requires gradients
+                batch_y.requires_grad = True
+
+                # Teacher forcing logic
+                if np.random.rand() < teacher_forcing_ratio:
+                    outputs = (
+                        batch_y.clone()
+                    )  # Use ground truth as next input without detaching
+
                 loss = criterion(outputs, batch_y)
 
                 loss.backward()
@@ -165,13 +183,13 @@ class LSTMModel:
         return history, test_data
 
     def predict(self, data, steps=30):
-        if not self.is_trained:
-            raise ValueError("Model must be trained first")
+        if not self.is_trained or self.model is None:
+            raise ValueError("Model must be trained and initialized first")
 
         self.model.load_state_dict(torch.load("model.pth"))
         self.model.eval()
 
-        scaled_data = self.scaler.fit_transform(data[["Close"]])
+        scaled_data = self.scaler.transform(data[["Close"]])
         last_sequence = scaled_data[-self.lookback_period :]
 
         predictions = []
@@ -193,11 +211,11 @@ class LSTMModel:
         return predictions.flatten()
 
     def eval_model(self, test_data):
-        if not self.is_trained:
-            raise ValueError("Model must be trained first")
+        if not self.is_trained or self.model is None:
+            raise ValueError("Model must be trained and initialized first")
 
         X_test, y_test = test_data
-        X_test.to(self.device)
+        X_test = X_test.to(self.device)
 
         self.model.load_state_dict(torch.load("model.pth"))
         self.model.eval()
@@ -215,3 +233,47 @@ class LSTMModel:
         ).flatten()
 
         return y_test_inv, predictions_inv
+
+    def transfer_learning(
+        self,
+        new_data,
+        target_column="Close",
+        epochs=10,
+        batch_size=32,
+        learning_rate=0.0001,
+    ):
+        if not self.is_trained or self.model is None:
+            raise ValueError("Model must be trained first before transfer learning")
+
+        X, y = self.prepare_data(new_data, target_column, fit_scaler=False)
+        train_loader, test_loader, test_data = self.create_data_loaders(
+            X, y, batch_size
+        )
+
+        self.model.train()
+
+        criterion = nn.MSELoss()
+        optimizer = optim.Adam(self.model.parameters(), lr=learning_rate)
+
+        for epoch in range(epochs):
+            train_loss = 0.0
+            for batch_X, batch_y in train_loader:
+                batch_X, batch_y = batch_X.to(self.device), batch_y.to(self.device)
+
+                optimizer.zero_grad()
+
+                outputs = self.model(batch_X)
+                loss = criterion(outputs, batch_y)
+
+                loss.backward()
+                optimizer.step()
+
+                train_loss += loss.item()
+
+            print(
+                f"Transfer Learning Epoch [{epoch+1}/{epochs}], Train loss: {train_loss / len(train_loader):.6f}"
+            )
+
+        self.is_trained = True
+
+        return test_data
