@@ -2,7 +2,8 @@ import streamlit as st
 from data_loader import DataLoader
 from visualize import Visualizer
 from datetime import datetime, timedelta
-from models import LSTMModel
+from models.LSTM import LSTMModel
+from utils import calculate_metrics
 
 
 def main():
@@ -41,8 +42,10 @@ def main():
 
         forecast_days = st.slider("Forecast Days", min_value=7, max_value=90, value=30)
 
+        load_data = st.button("Load Data", type="primary")
+
         if model_type in ["LSTM", "ARIMA"]:
-            st.subheader("LSTM Parameters")
+            st.subheader("Model Parameters")
             lookback_period = st.slider(
                 "Lookback Period", min_value=30, max_value=120, value=60
             )
@@ -58,8 +61,6 @@ def main():
                 options=[0.0001, 0.0005, 0.001, 0.005, 0.01],
                 value=0.001,
             )
-
-        load_data = st.button("Load Data", type="primary")
 
     if load_data or "stock_data" in st.session_state:
         if load_data:
@@ -155,6 +156,18 @@ def main():
                         history, test_data = lstm_model.train(
                             data, epochs=epochs, learning_rate=learning_rate
                         )
+                        y_test_actual, y_test_pred = lstm_model.eval_model(test_data)
+
+                        lstm_metrics = calculate_metrics(y_test_actual, y_test_pred)
+
+                        results["LSTM"] = {
+                            "model": lstm_model,
+                            "metrics": lstm_metrics,
+                            "status": "success",
+                        }
+
+                        st.success("Model successfully trained")
+
                     except Exception as e:
                         st.error(f"LSTM training failed: {str(e)}")
                         results["LSTM"] = {"status": "failed", "error": str(e)}

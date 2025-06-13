@@ -1,4 +1,5 @@
 import numpy as np
+import streamlit as st
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
@@ -6,6 +7,7 @@ import torch.optim as optim
 from sklearn.preprocessing import MinMaxScaler
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+torch.classes.__path__ = []  # Fix error with torch and streamlit compatibility
 
 
 class LSTMNet(nn.Module):
@@ -109,6 +111,7 @@ class LSTMModel:
         train_losses = []
         val_losses = []
 
+        best_val_loss = float('inf')
         for epoch in range(epochs):
             self.model.train()
             train_loss = 0.0
@@ -140,12 +143,16 @@ class LSTMModel:
             avg_train_loss = train_loss / len(train_loader)
             avg_val_loss = val_loss / len(test_loader)
 
+            if avg_val_loss < best_val_loss:
+                best_val_loss = avg_val_loss
+                torch.save(self.model.state_dict(), "model.pth")
+
             train_losses.append(avg_train_loss)
             val_losses.append(avg_val_loss)
 
             scheduler.step(avg_val_loss)
 
-            print(
+            st.write(
                 f"Epoch [{epoch+1}/{epochs}], Train loss: {avg_train_loss:.6f}, Val loss: {avg_val_loss:.6f}"
             )
 
@@ -158,6 +165,7 @@ class LSTMModel:
         if not self.is_trained:
             raise ValueError("Model must be trained first")
 
+        self.model.load_state_dict(torch.load("model.pth"))
         self.model.eval()
 
         scaled_data = self.scaler.fit_transform(data[["Close"]])
@@ -165,10 +173,40 @@ class LSTMModel:
 
         predictions = []
         current_sequence = (
-            torch.FloatTensor(last_sequence).unsqueeze(0).unsqueeze(-1).to(self.device)
+            torch.FloatTensor(last_sequence).unsqueeze(0).to(self.device)
         )
 
         with torch.no_grad():
             for _ in range(steps):
                 pred = self.model(current_sequence)
-                
+                predictions.append(pred.cpu().flatten().numpy()[0])
+
+                new_pred = pred.unsqueeze(0)
+                current_sequence = torch.cat([current_sequence[:, 1:, :], new_pred], dim=1)
+
+        predictions = np.array(predictions).reshape(-1, 1)
+        predictions = self.scaler.inverse_transform(predictions)
+
+        return predictions.flatten()
+
+    def eval_model(self, test_data):
+        if not self.is_trained:
+            raise ValueError("Model must be trained first")
+
+        X_test, y_test = test_data
+        X_test.to(self.device)
+
+        self.model.load_state_dict(torch.load("model.pth"))
+        self.model.eval()
+
+        predictions = []
+
+        with torch.no_grad():
+            for i in range(len(X_test)):
+                pred = self.model(X_test[i:i+1])
+                predictions.append(pred.item())
+
+        y_test_inv = self.scaler.inverse_transform(y_test).flatten()
+        predictions_inv = self.scaler.inverse_transform(np.array(predictions)).flatten()
+
+        return y_test_inv, predictions_inv
