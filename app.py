@@ -299,7 +299,9 @@ def main():
                     for model_name, result in results.items():
                         if result["status"] == "success":
                             try:
+                                train_data = data[:-30]
                                 test_data = data[-30:]
+
                                 if model_name == "LSTM":
                                     predictions = result["model"].predict(
                                         train_data, steps=backtest_days
