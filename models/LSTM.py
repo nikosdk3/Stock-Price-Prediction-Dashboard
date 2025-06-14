@@ -119,6 +119,7 @@ class LSTMModel:
         train_losses = []
         val_losses = []
 
+        st.write("LSTM Model Progress")
         progress_bar = st.progress(0)
         best_val_loss = float("inf")
         for epoch in range(epochs):

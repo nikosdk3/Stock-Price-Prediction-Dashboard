@@ -1,3 +1,5 @@
+from tempfile import template
+from turtle import title
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import pandas as pd
@@ -132,3 +134,35 @@ class Visualizer:
             periods=len(actual),
         )
         return self.plot_backtesting(actual, predicted, dates, model_type="LSTM")
+
+    def plot_metrics_comparison(self, metrics_dict):
+        models = list(metrics_dict.keys())
+        metrics = ["MAE", "RMSE", "MAPE"]
+
+        fig = make_subplots(
+            rows=1,
+            cols=len(metrics),
+            subplot_titles=metrics,
+            specs=[[{"type": "bar"}] * len(metrics)],
+        )
+
+        colors = [self.colors["primary"], self.colors["secondary"]]
+
+        for i, metric in enumerate(metrics):
+            values = [metrics_dict[model][metric] for model in models]
+
+            fig.add_trace(
+                go.Bar(
+                    x=models,
+                    y=values,
+                    name=metric,
+                    marker_color=colors[i % len(colors)],
+                    showlegend=False,
+                ),
+                row=1,
+                col=i + 1,
+            )
+
+        fig.update_layout(title="Model Performance Comparison", template="plotly_white")
+
+        return fig

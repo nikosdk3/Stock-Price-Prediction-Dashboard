@@ -4,6 +4,7 @@ from data_loader import DataLoader
 from visualize import Visualizer
 from datetime import datetime, timedelta
 from models.LSTM import LSTMModel
+from models.ARIMA import ARIMAModel
 from models.utils import calculate_metrics
 
 
@@ -141,10 +142,12 @@ def main():
             st.header("Model Training")
             if st.button("Train Model", type="primary"):
                 status_text = st.empty()
+
                 results = {}
+
                 if model_type in ["LSTM", "Both"]:
+                    status_text = st.text("Training LSTM model...")
                     try:
-                        status_text = st.text("Training LSTM model...")
                         lstm_model = LSTMModel(
                             lookback_period=lookback_period,
                             hidden_size=hidden_size,
@@ -165,6 +168,39 @@ def main():
                     except Exception as e:
                         st.error(f"LSTM training failed: {str(e)}")
                         results["LSTM"] = {"status": "failed", "error": str(e)}
+
+                if model_type in ["ARIMA", "Both"]:
+                    status_text.text("Training ARIMA Model...")
+                    try:
+                        st.write("ARIMA Model Progress")
+                        progress_bar = st.progress(0)
+                        arima_model = ARIMAModel()
+                        order = arima_model.train(data)
+                        progress_bar.progress(50)
+
+                        train_data = data[:-30]
+                        test_data = data[-30:]
+
+                        arima_test = ARIMAModel()
+                        arima_test.train(train_data, order=order)
+                        progress_bar.progress(100)
+                        test_predictions = arima_test.predict(steps=30)
+
+                        arima_metrics = calculate_metrics(
+                            test_data["Close"].values, test_predictions
+                        )
+
+                        results["ARIMA"] = {
+                            "model": arima_model,
+                            "metrics": arima_metrics,
+                            "order": order,
+                            "status": "success",
+                        }
+
+                        st.success(f"Arima model trained successfully! Order: {order}")
+                    except Exception as e:
+                        st.error(f"ARIMA training failed: {str(e)}")
+                        results["ARIMA"] = {"status": "failed", "error": str(e)}
 
                 st.success("Training completed!")
 
@@ -202,6 +238,10 @@ def main():
                                 predictions = result["model"].predict(
                                     data, steps=forecast_days
                                 )
+                            elif model_name == "ARIMA":
+                                predictions = result["model"].predict(
+                                    steps=forecast_days
+                                )
 
                             forecast_df = pd.DataFrame(
                                 {"Date": forecast_dates, "Predicted_Price": predictions}
@@ -237,7 +277,17 @@ def main():
             if "model_results" in st.session_state:
                 results = st.session_state["model_results"]
 
-                # TODO: Add comparison between future models. For just use LSTM
+                successful_models = {
+                    k: v for k, v in results.items() if v["status"] == "success"
+                }
+
+                if len(successful_models) > 1:
+                    st.subheader("Model Comparison")
+                    metrics_dict = {
+                        k: v["metrics"] for k, v in successful_models.items()
+                    }
+                    fig = visualizer.plot_metrics_comparison(metrics_dict)
+                    st.plotly_chart(fig, use_container_width=True)
 
                 st.subheader("Backtesting results")
 
@@ -249,12 +299,15 @@ def main():
                     for model_name, result in results.items():
                         if result["status"] == "success":
                             try:
-                                train_data = data[:-backtest_days]
-                                test_data = data[-backtest_days:]
-
-                                predictions = result["model"].predict(
-                                    train_data, steps=backtest_days
-                                )
+                                test_data = data[-30:]
+                                if model_name == "LSTM":
+                                    predictions = result["model"].predict(
+                                        train_data, steps=backtest_days
+                                    )
+                                elif model_name == "ARIMA":
+                                    predictions = result["model"].predict(
+                                        steps=backtest_days
+                                    )
 
                                 actual_values = test_data["Close"].values
 

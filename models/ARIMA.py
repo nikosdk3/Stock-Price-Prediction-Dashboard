@@ -1,4 +1,5 @@
 import numpy as np
+import streamlit as st
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.tsa.arima.model import ARIMA
 
@@ -7,6 +8,8 @@ class ARIMAModel:
     def __init__(self):
         self.model = None
         self.fitted_model = None
+        self.is_trained = False
+        self.progress_bar = None
 
     def check_stationarity(self, timeseries):
         result = adfuller(timeseries)
@@ -30,7 +33,7 @@ class ARIMAModel:
 
         return best_order if best_order else (1, 1, 1)
 
-    def train(self, data, target_column='Close', order=None):
+    def train(self, data, target_column="Close", order=None):
         timeseries = data[target_column].values
 
         if order is None:
@@ -39,5 +42,14 @@ class ARIMAModel:
         try:
             self.model = ARIMA(timeseries, order=order)
             self.fitted_model = self.model.fit()
+            self.is_trained = True
+            return order
         except Exception as e:
-            raise ValueError(f"Failed to train ARIMA model: ")
+            raise ValueError(f"Failed to train ARIMA model: {str(e)}")
+
+    def predict(self, steps=30):
+        if not self.is_trained:
+            raise ValueError("Model must be trained first")
+
+        forecast = self.fitted_model.forecast(steps=steps)
+        return forecast
